@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "crlayers",
+  "version": "1.0.0",
+  "name": "CR Layers Generator",
+  "description": "Generate Conquest Reforged terrain layers automatically",
+  "authors": [
+    "arona74"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/crlayers/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "io.arona74.crlayers.CRLayers"
+    ]
+  },
+  "mixins": [],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "1.20.1",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}
