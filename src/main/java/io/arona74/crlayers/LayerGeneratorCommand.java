@@ -13,27 +13,19 @@ import net.minecraft.util.math.BlockPos;
 public class LayerGeneratorCommand {
     
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
-        // Main generation command
+        // Main generation command (always handles plants)
         dispatcher.register(CommandManager.literal("generateLayers")
             .requires(source -> source.hasPermissionLevel(2))
-            .then(CommandManager.argument("chunkRadius", IntegerArgumentType.integer(1, 20))
-                .executes(LayerGeneratorCommand::executeWithRadius)
-                .then(CommandManager.literal("--replacePlants")
-                    .executes(LayerGeneratorCommand::executeWithRadiusAndPlants)))
-            .then(CommandManager.literal("--replacePlants")
-                .executes(LayerGeneratorCommand::executeDefaultWithPlants))
+            .then(CommandManager.argument("chunkRadius", IntegerArgumentType.integer(1, 32))
+                .executes(LayerGeneratorCommand::executeWithRadius))
             .executes(LayerGeneratorCommand::executeDefault)
         );
         
-        // Remove layers command
+        // Remove layers command (always restores plants)
         dispatcher.register(CommandManager.literal("removeLayers")
             .requires(source -> source.hasPermissionLevel(2))
-            .then(CommandManager.argument("chunkRadius", IntegerArgumentType.integer(1, 20))
-                .executes(LayerGeneratorCommand::executeRemoveWithRadius)
-                .then(CommandManager.literal("--restorePlants")
-                    .executes(LayerGeneratorCommand::executeRemoveWithRadiusAndPlants)))
-            .then(CommandManager.literal("--restorePlants")
-                .executes(LayerGeneratorCommand::executeRemoveDefaultWithPlants))
+            .then(CommandManager.argument("chunkRadius", IntegerArgumentType.integer(1, 32))
+                .executes(LayerGeneratorCommand::executeRemoveWithRadius))
             .executes(LayerGeneratorCommand::executeRemoveDefault)
         );
         
@@ -80,7 +72,7 @@ public class LayerGeneratorCommand {
         dispatcher.register(CommandManager.literal("debugLayers")
             .requires(source -> source.hasPermissionLevel(2))
             .then(CommandManager.argument("radius", IntegerArgumentType.integer(1, 10))
-            .executes(LayerGeneratorCommand::executeDebug))
+                .executes(LayerGeneratorCommand::executeDebug))
             .executes(context -> executeDebug(context, 3))
         );
     }
@@ -88,21 +80,12 @@ public class LayerGeneratorCommand {
     // ==================== Generation Commands ====================
     
     private static int executeDefault(CommandContext<ServerCommandSource> context) {
-        return execute(context, 3, false);
-    }
-    
-    private static int executeDefaultWithPlants(CommandContext<ServerCommandSource> context) {
-        return execute(context, 3, true);
+        return execute(context, 3, true); // Always handle plants
     }
     
     private static int executeWithRadius(CommandContext<ServerCommandSource> context) {
         int chunkRadius = IntegerArgumentType.getInteger(context, "chunkRadius");
-        return execute(context, chunkRadius, false);
-    }
-    
-    private static int executeWithRadiusAndPlants(CommandContext<ServerCommandSource> context) {
-        int chunkRadius = IntegerArgumentType.getInteger(context, "chunkRadius");
-        return execute(context, chunkRadius, true);
+        return execute(context, chunkRadius, true); // Always handle plants
     }
     
     private static int execute(CommandContext<ServerCommandSource> context, int chunkRadius, boolean replacePlants) {
@@ -122,9 +105,7 @@ public class LayerGeneratorCommand {
         source.sendFeedback(() -> Text.literal("§7" + configInfo), false);
         
         int blockRadius = chunkRadius * 16;
-        String message = replacePlants ? 
-            String.format("§eGenerating layers in %d chunk radius (~%d blocks) with plant replacement...", chunkRadius, blockRadius) :
-            String.format("§eGenerating layers in %d chunk radius (~%d blocks)...", chunkRadius, blockRadius);
+        String message = String.format("§eGenerating layers in %d chunk radius (~%d blocks) with plant handling...", chunkRadius, blockRadius);
         source.sendFeedback(() -> Text.literal(message), false);
         
         LayerGenerator generator = new LayerGenerator(player.getServerWorld());
@@ -157,21 +138,12 @@ public class LayerGeneratorCommand {
     // ==================== Removal Commands ====================
     
     private static int executeRemoveDefault(CommandContext<ServerCommandSource> context) {
-        return executeRemove(context, 1, false);
-    }
-    
-    private static int executeRemoveDefaultWithPlants(CommandContext<ServerCommandSource> context) {
-        return executeRemove(context, 1, true);
+        return executeRemove(context, 3, true); // Always restore plants
     }
     
     private static int executeRemoveWithRadius(CommandContext<ServerCommandSource> context) {
         int chunkRadius = IntegerArgumentType.getInteger(context, "chunkRadius");
-        return executeRemove(context, chunkRadius, false);
-    }
-    
-    private static int executeRemoveWithRadiusAndPlants(CommandContext<ServerCommandSource> context) {
-        int chunkRadius = IntegerArgumentType.getInteger(context, "chunkRadius");
-        return executeRemove(context, chunkRadius, true);
+        return executeRemove(context, chunkRadius, true); // Always restore plants
     }
     
     private static int executeRemove(CommandContext<ServerCommandSource> context, int chunkRadius, boolean restorePlants) {
@@ -185,9 +157,7 @@ public class LayerGeneratorCommand {
         BlockPos playerPos = player.getBlockPos();
         
         int blockRadius = chunkRadius * 16;
-        String message = restorePlants ?
-            String.format("§eRemoving layers in %d chunk radius (~%d blocks) and restoring plants...", chunkRadius, blockRadius) :
-            String.format("§eRemoving layers in %d chunk radius (~%d blocks)...", chunkRadius, blockRadius);
+        String message = String.format("§eRemoving layers in %d chunk radius (~%d blocks) and restoring plants...", chunkRadius, blockRadius);
         source.sendFeedback(() -> Text.literal(message), false);
         
         LayerGenerator generator = new LayerGenerator(player.getServerWorld());
@@ -311,6 +281,8 @@ public class LayerGeneratorCommand {
         
         return 1;
     }
+
+    // ==================== Debug Command ====================
 
     private static int executeDebug(CommandContext<ServerCommandSource> context) {
         int radius = IntegerArgumentType.getInteger(context, "radius");

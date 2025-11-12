@@ -23,7 +23,7 @@ public class PlantMappingRegistry {
     
     /**
      * Register default plant mappings
-     * TODO: Replace these with actual Conquest Reforged plant block IDs
+     * TO DO: Replace these with actual Conquest Reforged plant block IDs
      */
     private void registerDefaultMappings() {
         // Grass variants (Note: SHORT_GRASS is GRASS in 1.20.1)
