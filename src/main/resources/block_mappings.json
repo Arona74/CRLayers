@@ -1,0 +1,19 @@
+{
+  "_comment": "Block to Conquest Reforged layer mappings. Format: 'minecraft:block_name': 'conquest:layer_block_name'",
+  "mappings": {
+    "minecraft:grass_block": "conquest:grass_block_layer",
+    "minecraft:dirt": "conquest:loamy_dirt_slab",
+    "minecraft:coarse_dirt": "conquest:dirt_path_layer",
+    "minecraft:podzol": "conquest:vibrant_autumnal_forest_floor_layer",
+    "minecraft:stone": "conquest:limestone_slab",
+    "minecraft:cobblestone": "conquest:limestone_cobble_slab",
+    "minecraft:mossy_cobblestone": "conquest:mossy_limestone_cobble_slab",
+    "minecraft:andesite": "conquest:andesite_slab",
+    "minecraft:diorite": "conquest:diorite_slab",
+    "minecraft:granite": "conquest:granite_slab",
+    "minecraft:sand": "conquest:sand_layer",
+    "minecraft:red_sand": "conquest:red_sand_layer",
+    "minecraft:gravel": "conquest:gravel_layer",
+    "minecraft:mycelium": "conquest:mycelium_layer"
+  }
+}

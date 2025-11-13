@@ -316,23 +316,24 @@ public class LayerGenerator {
                                                         Map<BlockPos, Integer> fullHeightmap,
                                                         Map<BlockPos, Integer> edges,
                                                         Set<ChunkPos> targetChunks) {
-        
+
         Map<BlockPos, Integer> layerValues = new HashMap<>();
-        
+
         // Get all unique Y levels
         Set<Integer> allYLevels = new HashSet<>(fullHeightmap.values());
         List<Integer> sortedYLevels = new ArrayList<>(allYLevels);
         Collections.sort(sortedYLevels, Collections.reverseOrder()); // Highest to lowest
-        
+
         if (sortedYLevels.size() < 2) {
             CRLayers.LOGGER.info("Not enough Y levels to process");
             return layerValues;
         }
-        
-        CRLayers.LOGGER.info("Processing {} Y levels (from {} to {})", 
-            sortedYLevels.size(), 
+
+        CRLayers.LOGGER.info("Processing {} Y levels (from {} to {}), Mode: {}",
+            sortedYLevels.size(),
             sortedYLevels.get(0),
-            sortedYLevels.get(sortedYLevels.size()-1));
+            sortedYLevels.get(sortedYLevels.size()-1),
+            LayerConfig.MODE);
         
         // Create XZ lookup for full heightmap
         Map<String, Integer> xzToHeight = new HashMap<>();
@@ -367,9 +368,18 @@ public class LayerGenerator {
             
             // Only generate layers if not highest/lowest
             if (shouldGenerate) {
+                // Determine effective max distance based on mode
+                int effectiveMaxDistance = LayerConfig.MAX_LAYER_DISTANCE;
+                if (LayerConfig.MODE == LayerConfig.GenerationMode.EXTENDED) {
+                    effectiveMaxDistance = LayerConfig.MAX_LAYER_DISTANCE * 2;
+                } else if (LayerConfig.MODE == LayerConfig.GenerationMode.EXTREME) {
+                    effectiveMaxDistance = LayerConfig.MAX_LAYER_DISTANCE * 3;
+                }
+
                 // Step 2: Spread layers from H blocks
-                spreadLayersFromHBlocks(currentY, hBlocks, lBlocks, eBlocks, layerValues);
-                
+                spreadLayersFromHBlocks(currentY, hBlocks, lBlocks, eBlocks, layerValues,
+                    effectiveMaxDistance);
+
                 // Step 3: Smoothing passes
                 for (int cycle = 0; cycle < LayerConfig.SMOOTHING_CYCLES; cycle++) {
                     smoothingPass(currentY, lBlocks, hBlocks, eBlocks, layerValues);
@@ -485,8 +495,8 @@ public class LayerGenerator {
         };
         
         for (BlockPos lBlock : lBlocks) {
-            // Skip if already has a layer value
-            //if (layerValues.containsKey(lBlock)) continue;
+            // Get existing value (from spreading phase)
+            Integer existingValue = layerValues.get(lBlock);
 
             int sum = 0;
             int count = 0;
@@ -495,7 +505,7 @@ public class LayerGenerator {
             // Only consider the 4 cardinal neighbors
             for (int[] offset : cardinalOffsets) {
                 BlockPos neighbor = new BlockPos(lBlock.getX() + offset[0], currentY, lBlock.getZ() + offset[1]);
-                
+
                 if (hBlocks.contains(neighbor)) {
                     sum += 8;
                     count++;
@@ -518,7 +528,7 @@ public class LayerGenerator {
             if (maxCardinalNeighborValue >= 2) {
                 double average = (double) sum / count;
                 int value;
-                
+
                 if (LayerConfig.SMOOTHING_ROUNDING_MODE == LayerConfig.RoundingMode.UP) {
                     value = (int) Math.ceil(average);
                 } else if (LayerConfig.SMOOTHING_ROUNDING_MODE == LayerConfig.RoundingMode.NEAREST) {
@@ -526,7 +536,7 @@ public class LayerGenerator {
                 } else { // DOWN
                     value = (int) Math.floor(average);
                 }
-                
+
                 // Clamp to valid range 1-7
                 value = Math.max(1, Math.min(7, value));
 
@@ -536,7 +546,10 @@ public class LayerGenerator {
                     if (value < 1) value = 1; // safety clamp
                 }
 
-                newValues.put(lBlock, value);
+                // IMPORTANT: Only apply smoothing if it INCREASES the value (preserves extended gradients)
+                if (existingValue == null || value > existingValue) {
+                    newValues.put(lBlock, value);
+                }
             }
         }
         
@@ -547,12 +560,13 @@ public class LayerGenerator {
     /**
      * Spread layers from all H blocks in 8 directions
      */
-    private void spreadLayersFromHBlocks(int currentY, 
+    private void spreadLayersFromHBlocks(int currentY,
                                         Set<BlockPos> hBlocks,
                                         Set<BlockPos> lBlocks,
                                         Set<BlockPos> eBlocks,
-                                        Map<BlockPos, Integer> layerValues) {
-        
+                                        Map<BlockPos, Integer> layerValues,
+                                        int maxDistance) {
+
         // 8 directions: N, NE, E, SE, S, SW, W, NW
         int[][] directions = {
             {0, -1},  // N
@@ -564,41 +578,68 @@ public class LayerGenerator {
             {-1, 0},  // W
             {-1, -1}  // NW (diagonal)
         };
-        
+
+        // Track path length statistics
+        Map<Integer, Integer> pathLengthCounts = new HashMap<>();
+        int totalPaths = 0;
+        int pathsWithLayers = 0;
+
         for (BlockPos hBlock : hBlocks) {
             for (int dirIdx = 0; dirIdx < directions.length; dirIdx++) {
                 int[] dir = directions[dirIdx];
                 boolean isDiagonal = (dir[0] != 0 && dir[1] != 0);
-                
+
                 // Walk in this direction and collect L blocks
                 List<BlockPos> pathLBlocks = new ArrayList<>();
-                
-                for (int step = 1; step <= LayerConfig.MAX_LAYER_DISTANCE; step++) {
+
+                for (int step = 1; step <= maxDistance; step++) {
                     BlockPos checkPos = new BlockPos(
                         hBlock.getX() + dir[0] * step,
                         currentY,
                         hBlock.getZ() + dir[1] * step
                     );
-                    
+
                     // Stop if we hit H or E block
                     if (hBlocks.contains(checkPos) || eBlocks.contains(checkPos)) {
                         break;
                     }
-                    
+
                     // Stop if not an L block
                     if (!lBlocks.contains(checkPos)) {
                         break;
                     }
-                    
+
                     pathLBlocks.add(checkPos);
                 }
-                
+
+                totalPaths++;
+
                 // Apply gradient based on available blocks
                 if (!pathLBlocks.isEmpty()) {
+                    int pathLength = pathLBlocks.size();
+                    pathLengthCounts.put(pathLength, pathLengthCounts.getOrDefault(pathLength, 0) + 1);
+                    pathsWithLayers++;
                     applyGradient(pathLBlocks, isDiagonal, layerValues);
                 }
             }
         }
+
+        // Log path statistics
+        if (pathsWithLayers > 0) {
+            CRLayers.LOGGER.info("Y={}: Processed {} paths ({} with layers). Path lengths: {}",
+                currentY, totalPaths, pathsWithLayers, formatPathStats(pathLengthCounts));
+        }
+    }
+
+    private String formatPathStats(Map<Integer, Integer> pathLengthCounts) {
+        StringBuilder sb = new StringBuilder();
+        pathLengthCounts.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEach(entry -> {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(entry.getKey()).append("x").append(entry.getValue());
+            });
+        return sb.toString();
     }
 
     /**
@@ -607,11 +648,11 @@ public class LayerGenerator {
     private void applyGradient(List<BlockPos> path, boolean isDiagonal, Map<BlockPos, Integer> layerValues) {
         int availableBlocks = path.size();
         int[] gradient = getGradientForSpace(availableBlocks, isDiagonal);
-        
+
         for (int i = 0; i < path.size() && i < gradient.length; i++) {
             BlockPos pos = path.get(i);
             int newValue = gradient[i];
-            
+
             // Take max of existing and new value
             Integer existing = layerValues.get(pos);
             if (existing == null || newValue > existing) {
@@ -632,6 +673,17 @@ public class LayerGenerator {
     }
 
     private int[] getNormalGradient(int space) {
+        // EXTREME mode: use extreme gradients with triple repeated values
+        if (LayerConfig.MODE == LayerConfig.GenerationMode.EXTREME) {
+            return getExtremeNormalGradient(space);
+        }
+
+        // EXTENDED mode: use extended gradients with repeated values
+        if (LayerConfig.MODE == LayerConfig.GenerationMode.EXTENDED) {
+            return getExtendedNormalGradient(space);
+        }
+
+        // BASIC mode: linear gradients
         if (space >= 7) {
             return new int[]{7, 6, 5, 4, 3, 2, 1};
         } else if (space == 6) {
@@ -650,22 +702,76 @@ public class LayerGenerator {
         return new int[0];
     }
 
+    /**
+     * EXTENDED mode gradients with repeated values
+     * Creates gradual transitions: 7,7,6,6,5,5,4,4,3,3,2,2,1,1
+     */
+    private int[] getExtendedNormalGradient(int space) {
+        // Extended gradients with repetition for longer distances
+        if (space >= 14) {
+            return new int[]{7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1};
+        } else if (space >= 13) {
+            return new int[]{7, 7, 6, 6, 5, 4, 4, 3, 3, 2, 2, 1, 1};
+        } else if (space >= 12) {
+            return new int[]{7, 7, 6, 6, 5, 4, 4, 3, 2, 2, 1, 1};
+        } else if (space >= 11) {
+            return new int[]{7, 6, 6, 5, 4, 4, 3, 2, 2, 1, 1};
+        } else if (space >= 10) {
+            return new int[]{7, 6, 6, 5, 4, 4, 3, 2, 2, 1};
+        } else if (space >= 9) {
+            return new int[]{7, 6, 6, 5, 4, 4, 3, 2, 1};
+        } else if (space >= 8) {
+            return new int[]{7, 6, 5, 4, 4, 3, 2, 1};
+        }
+        // For space <= 7, fall back to basic gradients
+        else if (space >= 7) {
+            return new int[]{7, 6, 5, 4, 3, 2, 1};
+        } else if (space >= 6) {
+            return new int[]{7, 6, 5, 3, 2, 1};
+        } else if (space >= 5) {
+            return new int[]{6, 5, 4, 2, 1};
+        } else if (space >= 4) {
+            return new int[]{7, 5, 3, 1};
+        } else if (space >= 3) {
+            return new int[]{6, 4, 2};
+        } else if (space >= 2) {
+            return new int[]{5, 2};
+        } else if (space >= 1) {
+            return new int[]{4};
+        }
+        return new int[0];
+    }
+
+    /**
+     * EXTREME mode gradients with triple repeated values
+     * Creates very gradual transitions: 7,7,7,6,6,6,5,5,5,4,4,4,3,3,3,2,2,2,1,1,1
+     */
+    private int[] getExtremeNormalGradient(int space) {
+        // Extreme gradients with triple repetition for very long distances (15-21 blocks)
+        if (space >= 21) {
+            return new int[]{7, 7, 7, 6, 6, 6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1};
+        } else if (space >= 20) {
+            return new int[]{7, 7, 7, 6, 6, 6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 1, 1, 1};
+        } else if (space >= 19) {
+            return new int[]{7, 7, 7, 6, 6, 6, 5, 5, 5, 4, 4, 3, 3, 3, 2, 2, 1, 1, 1};
+        } else if (space >= 18) {
+            return new int[]{7, 7, 6, 6, 6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 1, 1};
+        } else if (space >= 17) {
+            return new int[]{7, 7, 6, 6, 6, 5, 5, 5, 4, 4, 3, 3, 3, 2, 2, 1, 1};
+        } else if (space >= 16) {
+            return new int[]{7, 7, 6, 6, 5, 5, 5, 4, 4, 4, 3, 3, 2, 2, 1, 1};
+        } else if (space >= 15) {
+            return new int[]{7, 7, 6, 6, 5, 5, 4, 4, 4, 3, 3, 2, 2, 1, 1};
+        }
+        // For space <= 14, fall back to extended gradients
+        else {
+            return getExtendedNormalGradient(space);
+        }
+    }
+
     private int[] getDiagonalGradient(int space) {
-        // if (space >= 7) {
-        //     return new int[]{6, 4, 2};
-        // } else if (space == 6) {
-        //     return new int[]{6, 3, 1};
-        // } else if (space == 5) {
-        //     return new int[]{5, 3, 1};
-        // } else if (space == 4) {
-        //     return new int[]{5, 3, 1};
-        // } else if (space == 3) {
-        //     return new int[]{4, 2};
-        // } else if (space == 2) {
-        //     return new int[]{3, 1};
-        // } else if (space == 1) {
-        //     return new int[]{4};
-        // }
+        // Diagonal gradients are currently disabled (return empty array)
+        // You can enable them if needed for more coverage
         return new int[0];
     }
     

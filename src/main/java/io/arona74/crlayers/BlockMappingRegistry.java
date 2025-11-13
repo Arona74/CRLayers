@@ -20,41 +20,30 @@ public class BlockMappingRegistry {
     }
     
     /**
-     * Register default block to Conquest Reforged layer mappings
-     * NOTE: These are placeholder mappings. You'll need to replace these with actual
-     * Conquest Reforged block IDs once you know their naming convention.
+     * Load block to Conquest Reforged layer mappings from config file
      */
     private void registerDefaultMappings() {
-        // Example mappings - REPLACE THESE WITH ACTUAL CONQUEST REFORGED BLOCK IDS
-        // Format is typically: conquest:block_name_layer or similar
-        
-        // Grass blocks
-        blockToLayerMapping.put(Blocks.GRASS_BLOCK, "conquest:grass_block_layer");
-        
-        // Dirt variants
-        blockToLayerMapping.put(Blocks.DIRT, "conquest:loamy_dirt_slab");
-        blockToLayerMapping.put(Blocks.COARSE_DIRT, "conquest:dirt_path_layer");
-        blockToLayerMapping.put(Blocks.PODZOL, "conquest:vibrant_autumnal_forest_floor_layer");
-        
-        // Stone variants
-        blockToLayerMapping.put(Blocks.STONE, "conquest:limestone_slab");
-        blockToLayerMapping.put(Blocks.COBBLESTONE, "conquest:limestone_cobble_slab");
-        blockToLayerMapping.put(Blocks.MOSSY_COBBLESTONE, "conquest:mossy_limestone_cobble_slab");
-        
-        // Stone types
-        blockToLayerMapping.put(Blocks.ANDESITE, "conquest:andesite_slab");
-        blockToLayerMapping.put(Blocks.DIORITE, "conquest:diorite_slab");
-        blockToLayerMapping.put(Blocks.GRANITE, "conquest:granite_slab");
-        
-        // Sand and gravel
-        blockToLayerMapping.put(Blocks.SAND, "conquest:sand_layer");
-        blockToLayerMapping.put(Blocks.RED_SAND, "conquest:red_sand_layer");
-        blockToLayerMapping.put(Blocks.GRAVEL, "conquest:gravel_layer");
-        
-        // Other terrain
-        blockToLayerMapping.put(Blocks.MYCELIUM, "conquest:mycelium_layer");
-        
-        CRLayers.LOGGER.info("Registered {} block-to-layer mappings", blockToLayerMapping.size());
+        // Load mappings from config file
+        Map<String, String> configMappings = ConfigLoader.loadMappings("block_mappings.json");
+
+        // Convert string IDs to Block objects
+        for (Map.Entry<String, String> entry : configMappings.entrySet()) {
+            Identifier vanillaId = Identifier.tryParse(entry.getKey());
+            if (vanillaId == null) {
+                CRLayers.LOGGER.warn("Invalid vanilla block ID in config: {}", entry.getKey());
+                continue;
+            }
+
+            Block vanillaBlock = Registries.BLOCK.get(vanillaId);
+            if (vanillaBlock == Blocks.AIR) {
+                CRLayers.LOGGER.warn("Vanilla block not found: {}", entry.getKey());
+                continue;
+            }
+
+            blockToLayerMapping.put(vanillaBlock, entry.getValue());
+        }
+
+        CRLayers.LOGGER.info("Registered {} block-to-layer mappings from config", blockToLayerMapping.size());
     }
     
     /**

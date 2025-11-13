@@ -40,13 +40,14 @@ public class LayerGeneratorCommand {
                 .then(CommandManager.argument("mode", StringArgumentType.word())
                     .suggests((context, builder) -> {
                         builder.suggest("basic");
-                        builder.suggest("smooth");
+                        builder.suggest("extended");
+                        builder.suggest("extreme");
                         return builder.buildFuture();
                     })
                     .executes(LayerGeneratorCommand::setMode)))
             
             .then(CommandManager.literal("distance")
-                .then(CommandManager.argument("blocks", IntegerArgumentType.integer(3, 15))
+                .then(CommandManager.argument("blocks", IntegerArgumentType.integer(3, 25))
                     .executes(LayerGeneratorCommand::setDistance)))
             
             .then(CommandManager.literal("edgeThreshold")
@@ -66,6 +67,19 @@ public class LayerGeneratorCommand {
                         return builder.buildFuture();
                     })
                     .executes(LayerGeneratorCommand::setRoundingMode)))
+
+            .then(CommandManager.literal("reload")
+                .executes(LayerGeneratorCommand::reloadConfig))
+
+            .then(CommandManager.literal("preset")
+                .then(CommandManager.argument("preset", StringArgumentType.word())
+                    .suggests((context, builder) -> {
+                        builder.suggest("basic");
+                        builder.suggest("extended");
+                        builder.suggest("extreme");
+                        return builder.buildFuture();
+                    })
+                    .executes(LayerGeneratorCommand::applyPreset)))
         );
 
         // Debug log & file command
@@ -196,9 +210,11 @@ public class LayerGeneratorCommand {
         source.sendFeedback(() -> Text.literal(String.format(
             "§eRounding Mode: §f%s", LayerConfig.SMOOTHING_ROUNDING_MODE.name())), false);
         
-        String modeDesc = LayerConfig.MODE == LayerConfig.GenerationMode.BASIC ?
-            "§7Linear gradient: 7→6→5→4→3→2→1" :
-            "§7Gradual steps: 7,7→6,6→5,5→4,4→3,3→2,2→1,1";
+        String modeDesc = switch (LayerConfig.MODE) {
+            case BASIC -> "§7Linear gradient up to 7: 7→6→5→4→3→2→1";
+            case EXTENDED -> "§7Gradual steps up to 14: 7,7→6,6→5,5→4,4→3,3→2,2→1,1";
+            case EXTREME -> "§7Very gradual steps up to 21: 7,7,7→6,6,6→5,5,5→4,4,4→3,3,3→2,2,2→1,1,1";
+        };
         source.sendFeedback(() -> Text.literal(modeDesc), false);
         
         return 1;
@@ -210,52 +226,57 @@ public class LayerGeneratorCommand {
         
         LayerConfig.GenerationMode mode = switch (modeName) {
             case "basic" -> LayerConfig.GenerationMode.BASIC;
-            case "smooth" -> LayerConfig.GenerationMode.SMOOTH;
+            case "extended" -> LayerConfig.GenerationMode.EXTENDED;
+            case "extreme" -> LayerConfig.GenerationMode.EXTREME;
             default -> {
-                source.sendError(Text.literal("§cUnknown mode. Use: basic or smooth"));
+                source.sendError(Text.literal("§cUnknown mode. Use: basic, extended, or extreme"));
                 yield null;
             }
         };
         
         if (mode == null) return 0;
-        
+
         LayerConfig.MODE = mode;
+        LayerConfig.save();
         source.sendFeedback(() -> Text.literal(
             String.format("§aSet mode to: §f%s", mode.name())), true);
-        
+
         return 1;
     }
     
     private static int setDistance(CommandContext<ServerCommandSource> context) {
         ServerCommandSource source = context.getSource();
         int value = IntegerArgumentType.getInteger(context, "blocks");
-        
+
         LayerConfig.MAX_LAYER_DISTANCE = value;
+        LayerConfig.save();
         source.sendFeedback(() -> Text.literal(
             String.format("§aSet max layer distance to: §f%d blocks", value)), true);
-        
+
         return 1;
     }
     
     private static int setEdgeThreshold(CommandContext<ServerCommandSource> context) {
         ServerCommandSource source = context.getSource();
         int value = IntegerArgumentType.getInteger(context, "blocks");
-        
+
         LayerConfig.EDGE_HEIGHT_THRESHOLD = value;
+        LayerConfig.save();
         source.sendFeedback(() -> Text.literal(
             String.format("§aSet edge threshold to: §f%d blocks", value)), true);
-        
+
         return 1;
     }
     
     private static int setSmoothingCycles(CommandContext<ServerCommandSource> context) {
         ServerCommandSource source = context.getSource();
         int value = IntegerArgumentType.getInteger(context, "cycles");
-        
+
         LayerConfig.SMOOTHING_CYCLES = value;
+        LayerConfig.save();
         source.sendFeedback(() -> Text.literal(
             String.format("§aSet smoothing cycles to: §f%d", value)), true);
-        
+
         return 1;
     }
     
@@ -274,12 +295,80 @@ public class LayerGeneratorCommand {
         };
         
         if (mode == null) return 0;
-        
+
         LayerConfig.SMOOTHING_ROUNDING_MODE = mode;
+        LayerConfig.save();
         source.sendFeedback(() -> Text.literal(
             String.format("§aSet rounding mode to: §f%s", mode.name())), true);
-        
+
         return 1;
+    }
+
+    private static int reloadConfig(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+
+        try {
+            LayerConfig.reload();
+            source.sendFeedback(() -> Text.literal("§aConfiguration reloaded from file!"), true);
+            source.sendFeedback(() -> Text.literal(String.format(
+                "§eMode: §f%s §7| §eDistance: §f%d §7| §eSmoothing: §f%d cycles",
+                LayerConfig.MODE.name(), LayerConfig.MAX_LAYER_DISTANCE, LayerConfig.SMOOTHING_CYCLES)), false);
+            return 1;
+        } catch (Exception e) {
+            CRLayers.LOGGER.error("Error reloading config", e);
+            source.sendError(Text.literal("§cError reloading config: " + e.getMessage()));
+            return 0;
+        }
+    }
+
+    private static int applyPreset(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+        String presetName = StringArgumentType.getString(context, "preset").toLowerCase();
+
+        try {
+            switch (presetName) {
+                case "basic" -> {
+                    LayerConfig.MODE = LayerConfig.GenerationMode.BASIC;
+                    LayerConfig.MAX_LAYER_DISTANCE = 7;
+                    LayerConfig.EDGE_HEIGHT_THRESHOLD = 1;
+                    LayerConfig.SMOOTHING_CYCLES = 6;
+                    LayerConfig.SMOOTHING_ROUNDING_MODE = LayerConfig.RoundingMode.DOWN;
+                }
+                case "extended" -> {
+                    LayerConfig.MODE = LayerConfig.GenerationMode.EXTENDED;
+                    LayerConfig.MAX_LAYER_DISTANCE = 14;
+                    LayerConfig.EDGE_HEIGHT_THRESHOLD = 1;
+                    LayerConfig.SMOOTHING_CYCLES = 13;
+                    LayerConfig.SMOOTHING_ROUNDING_MODE = LayerConfig.RoundingMode.DOWN;
+                }
+                case "extreme" -> {
+                    LayerConfig.MODE = LayerConfig.GenerationMode.EXTREME;
+                    LayerConfig.MAX_LAYER_DISTANCE = 21;
+                    LayerConfig.EDGE_HEIGHT_THRESHOLD = 1;
+                    LayerConfig.SMOOTHING_CYCLES = 20;
+                    LayerConfig.SMOOTHING_ROUNDING_MODE = LayerConfig.RoundingMode.DOWN;
+                }
+                default -> {
+                    source.sendError(Text.literal("§cUnknown preset. Use: basic, extended, or extreme"));
+                    return 0;
+                }
+            }
+
+            LayerConfig.save();
+
+            source.sendFeedback(() -> Text.literal(
+                String.format("§aApplied preset: §f%s", presetName)), true);
+            source.sendFeedback(() -> Text.literal(String.format(
+                "§eMode: §f%s §7| §eDistance: §f%d §7| §eEdge Threshold: §f%d §7| §eSmoothing: §f%d cycles §7| §eRounding: §f%s",
+                LayerConfig.MODE.name(), LayerConfig.MAX_LAYER_DISTANCE, LayerConfig.EDGE_HEIGHT_THRESHOLD,
+                LayerConfig.SMOOTHING_CYCLES, LayerConfig.SMOOTHING_ROUNDING_MODE.name())), false);
+
+            return 1;
+        } catch (Exception e) {
+            CRLayers.LOGGER.error("Error applying preset", e);
+            source.sendError(Text.literal("§cError applying preset: " + e.getMessage()));
+            return 0;
+        }
     }
 
     // ==================== Debug Command ====================

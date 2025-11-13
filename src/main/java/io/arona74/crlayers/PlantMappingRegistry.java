@@ -22,39 +22,30 @@ public class PlantMappingRegistry {
     }
     
     /**
-     * Register default plant mappings
-     * TO DO: Replace these with actual Conquest Reforged plant block IDs
+     * Load plant mappings from config file
      */
     private void registerDefaultMappings() {
-        // Grass variants (Note: SHORT_GRASS is GRASS in 1.20.1)
-        registerPlantMapping(Blocks.GRASS, "conquest:grass");
-        registerPlantMapping(Blocks.TALL_GRASS, "conquest:tall_grass");
-        registerPlantMapping(Blocks.FERN, "conquest:fern");
-        registerPlantMapping(Blocks.LARGE_FERN, "conquest:large_fern");
-        
-        // Flowers
-        registerPlantMapping(Blocks.DANDELION, "conquest:dandelion");
-        registerPlantMapping(Blocks.POPPY, "conquest:poppy");
-        registerPlantMapping(Blocks.BLUE_ORCHID, "conquest:blue_orchid");
-        registerPlantMapping(Blocks.ALLIUM, "conquest:allium");
-        registerPlantMapping(Blocks.AZURE_BLUET, "conquest:azure_bluet");
-        registerPlantMapping(Blocks.RED_TULIP, "conquest:red_tulip");
-        registerPlantMapping(Blocks.ORANGE_TULIP, "conquest:orange_tulip");
-        registerPlantMapping(Blocks.WHITE_TULIP, "conquest:white_tulip");
-        registerPlantMapping(Blocks.PINK_TULIP, "conquest:pink_tulip");
-        registerPlantMapping(Blocks.OXEYE_DAISY, "conquest:oxeye_daisy");
-        registerPlantMapping(Blocks.CORNFLOWER, "conquest:cornflower");
-        registerPlantMapping(Blocks.LILY_OF_THE_VALLEY, "conquest:lily_of_the_valley");
-        
-        // Other plants
-        registerPlantMapping(Blocks.DEAD_BUSH, "conquest:dead_bush");
-        registerPlantMapping(Blocks.SUNFLOWER, "conquest:sunflower");
-        registerPlantMapping(Blocks.LILAC, "conquest:lilac");
-        registerPlantMapping(Blocks.ROSE_BUSH, "conquest:rose_bush");
-        registerPlantMapping(Blocks.PEONY, "conquest:peony");
-        //registerPlantMapping(Blocks.SWEET_BERRY_BUSH, "conquest:xxx");
-        
-        CRLayers.LOGGER.info("Registered {} plant mappings", vanillaToConquestPlant.size());
+        // Load mappings from config file
+        Map<String, String> configMappings = ConfigLoader.loadMappings("plant_mappings.json");
+
+        // Convert string IDs to Block objects and register bidirectional mappings
+        for (Map.Entry<String, String> entry : configMappings.entrySet()) {
+            Identifier vanillaId = Identifier.tryParse(entry.getKey());
+            if (vanillaId == null) {
+                CRLayers.LOGGER.warn("Invalid vanilla plant ID in config: {}", entry.getKey());
+                continue;
+            }
+
+            Block vanillaBlock = Registries.BLOCK.get(vanillaId);
+            if (vanillaBlock == Blocks.AIR) {
+                CRLayers.LOGGER.warn("Vanilla plant not found: {}", entry.getKey());
+                continue;
+            }
+
+            registerPlantMapping(vanillaBlock, entry.getValue());
+        }
+
+        CRLayers.LOGGER.info("Registered {} plant mappings from config", vanillaToConquestPlant.size());
     }
     
     /**

@@ -1,0 +1,13 @@
+{
+  "_comment": "Configuration for CR Layers generation behavior. Edit this file to customize layer generation.",
+  "_comment_mode": "Generation mode: BASIC (linear gradients 7→6→5→4→3→2→1), EXTENDED (2x distance with repeated values 7,7,6,6,5,5,4,4,3,3,2,2,1,1), or EXTREME (3x distance with triple repeated values 7,7,7→6,6,6→5,5,5→4,4,4→3,3,3→2,2,2→1,1,1)",
+  "mode": "BASIC",
+  "_comment_max_layer_distance": "Maximum distance from edges to place layers. EXTENDED mode automatically uses 2x this value, EXTREME mode uses 3x. Recommended: 5-10",
+  "max_layer_distance": 7,
+  "_comment_edge_height_threshold": "Minimum height difference to detect an edge. 1 = any height change, 2 = only 2+ block differences. Recommended: 1",
+  "edge_height_threshold": 1,
+  "_comment_smoothing_cycles": "Number of smoothing passes after layer spreading. More cycles = smoother transitions. Recommended: 4-8",
+  "smoothing_cycles": 6,
+  "_comment_smoothing_rounding_mode": "How to round averages during smoothing: UP (aggressive), DOWN (conservative), NEAREST (balanced)",
+  "smoothing_rounding_mode": "NEAREST"
+}

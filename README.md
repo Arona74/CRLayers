@@ -1,12 +1,14 @@
 # CR Layers Generator
 
-A Fabric mod for Minecraft 1.20.1 that automatically generate/remove Conquest Reforged terrain layers based on the surrounding blocks.
+A Fabric mod for Minecraft 1.20.1 that automatically generates/removes Conquest Reforged terrain layers based on the surrounding blocks.
 
 ## Features
 
-- **Automatic Layer Generation**: Generates layers that mimic natural terrain variation
+- **Three Generation Modes**: BASIC (linear), EXTENDED (2x distance), EXTREME (3x distance)
 - **Smart Height Detection**: Uses neighbor block heights to determine appropriate layer counts
-- **Configurable Chunk Radius**: Generate layers in any chunk radius around the player
+- **Plant Handling**: Automatically replaces and restores vanilla plants with Conquest Reforged variants
+- **Configurable System**: JSON-based configuration for easy customization
+- **Preset System**: Quick configuration presets for different generation styles
 - **Conquest Reforged Integration**: Maps vanilla blocks to their Conquest Reforged layer equivalents
 
 ## Installation
@@ -16,59 +18,70 @@ A Fabric mod for Minecraft 1.20.1 that automatically generate/remove Conquest Re
 3. Install Conquest Reforged mod
 4. Place this mod's JAR file in your mods folder
 
-## Usage
+## Commands
 
-Use the `/generateLayers` command in-game:
-
+### Layer Generation
 ```
 /generateLayers [chunkRadius]
 ```
-
-- **chunk radius** (optional): The radius in chunk to generate layers (1-32). Default is 3.
-
-Example:
-```
-/generateLayers 10
-```
-This will generate layers in a 10 chunk radius around your current position.
-
-Use the `/removeLayers` command in-game:
+Generate layers in the specified chunk radius (default: 3, max: 32). Automatically handles plant replacement.
 
 ```
 /removeLayers [chunkRadius]
 ```
+Remove layers in the specified chunk radius (default: 3, max: 32). Automatically restores original plants.
 
-- **chunk radius** (optional): The radius in chunk to remove layers (1-32). Default is 3.
+### Configuration
+```
+/layerConfig show                        # Display current configuration
+/layerConfig mode <basic|extended|extreme>  # Set generation mode
+/layerConfig distance <blocks>           # Set max layer distance (3-25)
+/layerConfig edgeThreshold <blocks>      # Set edge height threshold (1-5)
+/layerConfig smoothingCycles <cycles>    # Set smoothing cycles (0-20)
+/layerConfig roundingMode <up|down|nearest>  # Set rounding mode
+/layerConfig preset <basic|extended|extreme>  # Apply preset configuration
+/layerConfig reload                      # Reload config from file
+```
 
-Example:
-```
-/removeLayers 10
-```
-This will remove layers in a 10 chunk radius around your current position.
+### Presets
+- **basic**: Mode: BASIC, Distance: 7, Smoothing: 6, Rounding: DOWN
+- **extended**: Mode: EXTENDED, Distance: 14, Smoothing: 13, Rounding: DOWN
+- **extreme**: Mode: EXTREME, Distance: 21, Smoothing: 20, Rounding: DOWN
 
 ## Configuration
 
-### Block Mappings
+Configuration files are automatically created in `config/crlayers/` on first run.
 
-The mod comes with default mappings for common terrain blocks. You can customize these mappings in `BlockMappingRegistry.java`:
+### Generation Modes
 
-```java
-blockToLayerMapping.put(Blocks.GRASS_BLOCK, "conquest:grass_layer");
+- **BASIC**: Linear gradients (7→6→5→4→3→2→1) with standard distance
+- **EXTENDED**: Gradual gradients (7,7→6,6→5,5→...) with 2x distance
+- **EXTREME**: Very gradual gradients (7,7,7→6,6,6→5,5,5→...) with 3x distance
+
+### Configuration Files
+
+**layer_config.json**: Main generation settings
+- `mode`: Generation mode (BASIC, EXTENDED, EXTREME)
+- `max_layer_distance`: Base distance for layer spreading
+- `edge_height_threshold`: Minimum height difference to detect edges
+- `smoothing_cycles`: Number of smoothing passes
+- `smoothing_rounding_mode`: Rounding method (UP, DOWN, NEAREST)
+
+**block_mappings.json**: Vanilla to Conquest Reforged block mappings
+```json
+{
+  "minecraft:grass_block": "conquest:grass_block_layer",
+  "minecraft:dirt": "conquest:loamy_dirt_slab"
+}
 ```
 
-### Supported Blocks
-
-Currently, layers can be generated on:
-- Grass Block
-- Dirt (all variants)
-- Stone (all variants)
-- Sand
-- Red Sand
-- Gravel
-- Cobblestone
-- And more terrain blocks...
-
-You can add more blocks by modifying the `canGenerateLayersOn()` method in `LayerGenerator.java`.
+**plant_mappings.json**: Vanilla to Conquest Reforged plant mappings
+```json
+{
+  "minecraft:grass": "conquest:grass",
+  "minecraft:tall_grass": "conquest:tall_grass"
+}
+```
 
 ## Building from Source
 
@@ -102,7 +115,8 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Notes
 
-- The mod requires OP permission level 2 to use the command
+- Requires OP permission level 2 to use commands
+- Configuration changes via commands automatically save to file
 - Generation happens synchronously, so very large radii may cause temporary lag
 - Make backups before using in important worlds
-- The block mapping system is designed to be easily extensible
+- Plant replacement and restoration is handled automatically
