@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "crlayers",
-  "version": "1.0.0",
+  "version": "1.0.6b",
   "name": "CR Layers Generator",
   "description": "Generate Conquest Reforged terrain layers automatically",
   "authors": [

@@ -1049,21 +1049,8 @@ public class LayerGenerator {
     }
     
     private boolean canGenerateLayersOn(Block block) {
-        return block == Blocks.GRASS_BLOCK ||
-               block == Blocks.DIRT ||
-               block == Blocks.STONE ||
-               block == Blocks.SAND ||
-               block == Blocks.GRAVEL ||
-               block == Blocks.COBBLESTONE ||
-               block == Blocks.MOSSY_COBBLESTONE ||
-               block == Blocks.ANDESITE ||
-               block == Blocks.DIORITE ||
-               block == Blocks.GRANITE ||
-               block == Blocks.PODZOL ||
-               block == Blocks.MYCELIUM ||
-               block == Blocks.COARSE_DIRT ||
-               block == Blocks.TERRACOTTA ||
-               block.getDefaultState().isIn(net.minecraft.registry.tag.BlockTags.DIRT);
+        // Check if the block has a mapping in the config file
+        return mappingRegistry.hasMapping(block);
     }
     
     private boolean hasWaterNearby(BlockPos surfacePos) {
